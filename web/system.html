@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clock settings</title>
+<style>body{max-width:580px;margin:24px auto;padding:18px;font:16px system-ui;background:#111820;color:#eef3f8}label{display:block;margin:18px 0 6px}input,button{box-sizing:border-box;width:100%;padding:12px;font:inherit;border-radius:8px;border:1px solid #52616e}button{margin:12px 0;background:#9bdaff}a{color:#9bdaff}#message{white-space:pre-wrap}</style>
+<h1>Clock settings</h1><p><a href="/">Metro display settings</a></p><p id="status"></p>
+<form id="login"><label>Device password<input id="password" type="password" autocomplete="current-password" required></label><button>Sign in</button></form>
+<button id="reveal">Show password on the clock</button>
+<form id="wifi"><h2>Wi-Fi</h2><label>Network name (SSID)<input id="ssid" required maxlength="32"></label><label>Wi-Fi password<input id="wifiPassword" type="password" autocomplete="off"></label><button>Save and restart</button></form>
+<form id="change"><h2>Device password</h2><label>New password<input id="newPassword" type="password" minlength="8" maxlength="31" required autocomplete="new-password"></label><button>Change password</button></form>
+<form id="ota"><h2>Firmware update</h2><input id="image" type="file" accept=".bin" required><button>Install update</button></form>
+<button id="restart">Restart clock</button><p id="message" role="status"></p>
+<script>
+const el=id=>document.getElementById(id);const message=s=>el('message').textContent=s;
+async function call(path,options){const r=await fetch(path,options);if(!r.ok)throw Error(await r.text());return r;}
+async function form(path,data){return call(path,{method:'POST',body:new URLSearchParams(data)});}
+function handle(id,action){el(id).onsubmit=async e=>{e.preventDefault();try{await action();}catch(e){message(e.message);}};}
+handle('login',async()=>{await form('/api/auth/login',{password:el('password').value});message('Signed in.');});
+handle('wifi',async()=>{await form('/connect',{ssid:el('ssid').value,password:el('wifiPassword').value});message('Saved. The clock will restart.');});
+handle('change',async()=>{await form('/api/auth/password',{password:el('newPassword').value});el('newPassword').value='';message('Password changed.');});
+handle('ota',async()=>{const body=new FormData();body.append('update',el('image').files[0]);message('Uploading. Keep the clock powered.');await call('/update_ota',{method:'POST',body});message('Installed. Reconnect after the clock restarts.');});
+el('reveal').onclick=()=>form('/api/auth/reveal',{}).then(()=>message('The password is shown on the clock.')).catch(e=>message(e.message));
+el('restart').onclick=()=>call('/restart').then(()=>message('Restarting.')).catch(e=>message(e.message));
+call('/status').then(r=>r.json()).then(s=>{el('status').textContent=`Firmware ${s.version} · ${s.ip||s.apIp}`;if(s.ssid)el('ssid').value=s.ssid;}).catch(e=>message(e.message));
+</script></html>

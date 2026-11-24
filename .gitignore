@@ -1,5 +1,6 @@
 # PlatformIO
 .pio/
+.venv/
 .pio-tools/
 .pio-core/
 .pioenvs/
@@ -13,6 +14,14 @@
 *.elf
 *.map
 *.o
+*.log
+/core
+/core.*
+
+# Local workspace metadata
+/.agents/
+/.aws/
+/.codex/
 
 # OS
 Thumbs.db
@@ -20,6 +29,25 @@ Thumbs.db
 
 # Local build-time WiFi defaults
 secrets.ini
+.build-tools/
+.metro-private.json
+.metro-stock-config.json
+.metro-wifi.xml
+include/metro_provision.h
 
 # Release images (scripts/make_release.py)
 release/
+
+# Local device research and source downloads. The release ships the derived catalog.
+__pycache__/
+*.py[cod]
+data/arex-*.xlsx
+data/arex-live.html
+data/seoul-stations-*.xlsx
+data/seoul-dataset.html
+scripts/metro_device.py
+scripts/metro_provision.py
+scripts/metro_probe.py
+scripts/metro_research.py
+scripts/metro_watch.py
+scripts/metro_*_verify.py

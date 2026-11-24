@@ -2,15 +2,15 @@
 
 Installed over stock SD Pro V1.0.6 from its own update page on 2026-10-05, and updated
 through our own updater several times since
-([record](decisions/2026-10-05-first-flash-over-stock.md)). One unit has been tested.
+([record](https://github.com/michaeldale/smartclock-oss/blob/b214f30/docs/decisions/2026-10-05-first-flash-over-stock.md)). One unit has been tested.
 Going back to stock still needs UART, so a full flash backup over UART beforehand is the
 only way to keep the vendor firmware; the vendor update binaries are not full-device
 backups. Release images come from `python scripts/make_release.py` and are already named
-`SDPro_SmartClockOSS_v<version>.bin`.
+`SDPro_MetroClock_v<version>.bin`.
 
 ## Build and first flash
 
-1. Build with `pio run`. The image is `.pio/build/esp12e/firmware.bin`.
+1. Install the build dependencies from the [README](../README.md#firmware-installation) and run `python scripts/make_release.py`. Use the image in `release/`.
 2. Run `python tests/run_safety_tests.py` against that build (see compiler requirements
    in the script). These are offline tests, not hardware validation.
 3. Verify that the device is ESP8266 with 4 MB flash and supports the raw sketch image.
@@ -27,25 +27,27 @@ backups. Release images come from `python scripts/make_release.py` and are alrea
 4. Establish recovery and back up the device before using its stock OTA page. The stock
    updater controls the first transfer; our validation applies only to subsequent uploads.
 5. If proceeding with the stock updater, use the built firmware image and stable power.
-   **Rename it to start with `SDP`** (for example `SDPro_SmartClockOSS.bin`): the stock
+   **Rename it to start with `SDP`** (for example `SDPro_MetroClock.bin`): the stock
    page refuses any other filename in the browser, with "Please use the correct
    firmware". It does not check the contents
-   ([record](decisions/2026-10-05-first-flash-over-stock.md)). Our own update page
+   ([record](https://github.com/michaeldale/smartclock-oss/blob/b214f30/docs/decisions/2026-10-05-first-flash-over-stock.md)). Our own update page
    ignores the filename.
    Do not interrupt power during upload or reboot/copying.
 
 ## Recovery access
 
-The firmware starts an open AP, **Smart Weather Clock**, at **http://192.168.4.1/** and
-starts its embedded web server before any storage or display initialization. The AP stays
-up in every mode, alongside home WiFi. No button is needed to reach it. While the saved
+The firmware starts the **Smart Weather Clock** AP at **http://192.168.4.1/system**
+and starts its embedded web server before storage and display initialization.
+The AP stays up alongside home Wi-Fi. Normal setup uses the device password
+shown on the screen. Recovery uses an open AP. GPIO4 is reserved for favorite
+selection in normal operation. While the saved
 network is missing, the STA side searches in 30 s windows every 5 minutes, because
 continuous searching makes the ESP8266 hop channels and drop AP clients. On the LAN the
 clock also answers at **http://smartclock-XXXXXX.local/** (mDNS, from the same
 subnet only), where XXXXXX is from the chip id; the same name is its DHCP
 hostname, so the router's client list shows it.
 
-The unit has no usable button, so GPIO4 is never read to choose recovery. Recovery starts
+Recovery starts
 when any of these happen:
 
 - **Three quick power cycles** (power-on resets only; a crash or restart clears the
@@ -73,8 +75,7 @@ status, and restart work. **Restart** leaves recovery.
 Copy `secrets.example.ini` to `secrets.ini` (gitignored) and set `[wifi] ssid/password`.
 These are compiled in and used only when no WiFi is saved, and also in recovery. So even
 with broken storage the clock joins the LAN and can be updated there. The values are
-stored in plain text inside `firmware.bin`, so do not share that build. The WiFi page on
-the clock (first card at http://192.168.4.1/) remains the normal way to set WiFi.
+stored in plain text inside `firmware.bin`, so do not share that build. The Wi-Fi form at http://192.168.4.1/system sets Wi-Fi during normal setup.
 
 ### Returning to stock
 
@@ -82,14 +83,13 @@ Stock images lack the length/CRC fields that our updater requires, so **you cann
 back to the vendor firmware**. Returning to stock needs UART. Back up the full flash over
 UART before the first flash if you may ever want to go back.
 
-The AP and OTA endpoint still have no authentication. Anyone within WiFi range can
-reflash the device. Firmware recovery cannot rescue an image that never reaches this code;
-UART remains the fallback.
+Recovery exposes the OTA endpoint through its open AP. Keep recovery sessions short.
+UART remains the fallback for an image that fails before the recovery code runs.
 
 ## Subsequent updates
 
-Use the embedded **Firmware Update (OTA)** form, or POST a single multipart firmware
-file to `/update_ota`. Only raw project-compatible ESP8266 Arduino images are accepted:
+Sign in at `/system` and use **Firmware update**, or send a single multipart firmware
+file to the authenticated `/update_ota` endpoint. Only raw project-compatible ESP8266 Arduino images are accepted:
 4 MB/DIO/40 MHz, with the embedded image length and CRC produced by `elf2bin.py`.
 Compressed, filesystem, and vendor binaries without these fields are unsupported.
 The filename never selects a flash region; uploads always use `U_FLASH`.

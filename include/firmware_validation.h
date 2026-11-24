@@ -8,12 +8,14 @@ struct FirmwareValidation {
   static constexpr size_t prefixSize = 4120;
   uint8_t prefix[prefixSize] = {};
   size_t received = 0;
-  uint32_t expectedSize = 0, expectedCrc = 0, crc = 0xffffffff;
+  uint32_t expectedSize = 0, expectedCrc = 0;
+  // Store the complemented CRC so the whole validator can live in zero-initialized RAM.
+  uint32_t crcComplement = 0;
   uint8_t lastByte = 0;
 
   void reset() {
     received = expectedSize = expectedCrc = 0;
-    crc = 0xffffffff;
+    crcComplement = 0;
     lastByte = 0;
   }
 
@@ -32,6 +34,7 @@ struct FirmwareValidation {
            word(prefix + 4108) <= expectedSize - prefixSize;
   }
   void consume(const uint8_t* data, size_t size) {
+    uint32_t crc = ~crcComplement;
     for (size_t i = 0; i < size; ++i) {
       if (received < prefixSize) prefix[received] = data[i];
       uint8_t value = received >= 4112 && received < 4120 ? 0 : data[i];
@@ -41,8 +44,9 @@ struct FirmwareValidation {
       lastByte = data[i];
       ++received;
     }
+    crcComplement = ~crc;
   }
   bool complete() const {
-    return received == expectedSize && crc == expectedCrc;
+    return received == expectedSize && ~crcComplement == expectedCrc;
   }
 };

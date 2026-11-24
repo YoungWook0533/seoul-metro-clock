@@ -55,67 +55,27 @@ struct Config {
     f.close();
     ssid        = doc["ssid"]        | ssid;
     password    = doc["password"]    | password;
-    city        = doc["city"]        | city;
     ntp         = doc["ntp"]         | ntp;
-    if (doc["lat5"].is<long>() && doc["lon5"].is<long>()) {   // 1e-5 degrees
-      lat = (doc["lat5"].as<long>()) / 1e5f;
-      lon = (doc["lon5"].as<long>()) / 1e5f;
-    }
-    geoName     = doc["geoname"]     | geoName;
-    geoFor      = doc["geofor"]      | geoFor;
     timezoneMin = doc["timezone"]    | timezoneMin;
     tz          = doc["tz"]          | tz;
-    celsius     = doc["celsius"]     | celsius;
-    hour12      = doc["hour12"]      | hour12;
-    mile        = doc["mile"]        | mile;
-    theme       = doc["theme"]       | theme;
-    themeInterval = doc["themeInterval"] | themeInterval;
-    faceMask    = doc["faces"]       | faceMask;
     brightness  = doc["brightness"]  | brightness;
     nightMode   = doc["nightmode"]   | nightMode;
     nightAuto   = doc["nightauto"]   | nightAuto;
     nightBrightness = doc["nightbrightness"] | nightBrightness;
     startHour   = doc["starttime"]   | startHour;
     stopHour    = doc["stoptime"]    | stopHour;
-    color1      = doc["color1"]      | color1;
-    color2      = doc["color2"]      | color2;
-    color3      = doc["color3"]      | color3;
-    photoInterval = doc["photointerval"] | photoInterval;
-    photoClock  = doc["photoclock"]  | photoClock;
-    photoOff    = doc["photooff"]    | photoOff;
-    customFace  = doc["customface"]  | customFace;
-    facesApi    = doc["facesapi"]    | facesApi;
-    haCompat    = doc["hacompat"]    | haCompat;
-    mqttOn      = doc["mqtt"]        | mqttOn;
-    mqttHost    = doc["mqtthost"]    | mqttHost;
-    mqttPort    = doc["mqttport"]    | mqttPort;
-    mqttUser    = doc["mqttuser"]    | mqttUser;
-    mqttPass    = doc["mqttpass"]    | mqttPass;
-    mqttBase    = doc["mqttbase"]    | mqttBase;
-    apiKey      = doc["apikey"]      | apiKey;
     return true;
   }
 
   bool save() {
     JsonDocument doc;
     doc["ssid"] = ssid;           doc["password"] = password;
-    doc["city"] = city;           doc["ntp"] = ntp;
+    doc["ntp"] = ntp;
     doc["timezone"] = timezoneMin;
-    // Integers, not floats: saves pulling a float writer into the file path.
-    if (!isnan(lat) && !isnan(lon)) { doc["lat5"] = lroundf(lat * 1e5f); doc["lon5"] = lroundf(lon * 1e5f); }
-    doc["geoname"] = geoName; doc["geofor"] = geoFor;
     doc["tz"] = tz;
-    doc["celsius"] = celsius;     doc["hour12"] = hour12;   doc["mile"] = mile;
-    doc["theme"] = theme;         doc["themeInterval"] = themeInterval;
-    doc["faces"] = faceMask;
     doc["brightness"] = brightness;
     doc["nightmode"] = nightMode; doc["nightauto"] = nightAuto; doc["nightbrightness"] = nightBrightness;
     doc["starttime"] = startHour; doc["stoptime"] = stopHour;
-    doc["color1"] = color1;       doc["color2"] = color2;   doc["color3"] = color3;
-    doc["photointerval"] = photoInterval; doc["photoclock"] = photoClock; doc["photooff"] = photoOff; doc["customface"] = customFace;
-    doc["facesapi"] = facesApi;   doc["hacompat"] = haCompat; doc["mqtt"] = mqttOn;
-    doc["mqtthost"] = mqttHost;   doc["mqttport"] = mqttPort; doc["mqttuser"] = mqttUser;
-    doc["mqttpass"] = mqttPass;   doc["mqttbase"] = mqttBase; doc["apikey"] = apiKey;
     File f = LittleFS.open("/config.json", "w");
     if (!f) return false;
     serializeJson(doc, f);

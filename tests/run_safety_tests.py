@@ -5,6 +5,7 @@ No device connection or flash operations are performed.
 """
 from pathlib import Path
 import os
+import shlex
 import shutil
 import subprocess
 
@@ -21,7 +22,11 @@ vs = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Microsoft Visua
 scripts = list(vs.glob("*/VC/Auxiliary/Build/vcvars64.bat"))
 zig = shutil.which("zig") or root / ".pio-tools/ziglang/zig.exe"
 env = dict(os.environ)
-if Path(zig).is_file():
+if os.environ.get("CXX") or os.name != "nt":
+    command = shlex.split(os.environ.get("CXX", "c++")) + [
+        "-std=c++17", "-Wall", "-Wextra", f"-I{root / 'include'}",
+        str(out / "ota.cpp"), "-o", str(out / "ota.exe")]
+elif Path(zig).is_file():
     env["ZIG_LOCAL_CACHE_DIR"] = str(out / "zig-cache")
     env["ZIG_GLOBAL_CACHE_DIR"] = str(out / "zig-global-cache")
     command = [str(zig), "c++", "-std=c++17", "-Wall", "-Wextra",
@@ -47,7 +52,9 @@ with (out / "compiler.log").open("w", encoding="utf-8") as log:
 if result.returncode:
     print((out / "compiler.log").read_text(encoding="utf-8", errors="replace")[-6000:])
     raise SystemExit(result.returncode)
-subprocess.run([str(out / "ota.exe"), str(root / ".pio/build/esp12e/firmware.bin")], check=True)
+build = Path(os.environ.get("PLATFORMIO_BUILD_DIR", root / ".pio/build"))
+image = build / "esp12e/firmware.bin"
+subprocess.run([str(out / "ota.exe"), str(image)], check=True)
 
 # Storage and recovery invariants that do not require flash hardware.
 import re
@@ -69,7 +76,6 @@ safe = source[source.index("void safeRestart()"):]
 safe = safe[:safe.index("}")]
 assert len(restarts) == 1 and "ESP.restart()" in safe, "use safeRestart() for deliberate reboots"
 # The firmware image must fit the OTA budget enforced by build_options.py.
-image = root / ".pio/build/esp12e/firmware.bin"
 assert image.stat().st_size <= 0x7E000, "image exceeds OTA budget"
 data = image.read_bytes()
 fs = data.find((0x405FA000).to_bytes(4, "little"))
@@ -92,25 +98,11 @@ for name in ("handleApiSet", "handleConnect", "handleFormatStorage", "handleWeat
              "handleWifiForget", "handleScanWifi"):
     assert "requireAuth()" in function(source, "void " + name + "()"), f"{name} does not require sign-in"
 assert "if (!requestAuthorized()) { failOta(" in handler, "OTA upload must require sign-in"
-# Photos: signed in, or the stock-compatible /photo/* API while "Home Assistant dashboards" is on.
-access = function(source, "bool photoAccess()")
-assert "requestAuthorized()" in access and "cfg.haCompat" in access and '"/photo/"' in access
-assert "if (!photoAccess()) { photoError" in source, "photo upload must check photoAccess()"
-assert "if (!photoAccess())" in function(source, "void handlePhotoDelete()"), "photo delete must check photoAccess()"
-# /api/set without sign-in: only face and brightness, only with the integration on.
-api_set = function(source, "void handleApiSet()")
-assert 'cfg.haCompat && (key == "theme" || key == "lcd_brightness" || key == "brightness")' in api_set
-# Integrations: each is off by default and every endpoint checks its own switch.
-integ = (root / "src" / "integrations.cpp").read_text(encoding="utf-8")
-config = (root / "src" / "config.h").read_text(encoding="utf-8")
-for flag in ("facesApi = false", "haCompat = false", "mqttOn   = false"):
-    assert flag in config, f"integration not off by default: {flag}"
-assert "cfg.facesApi" in function(integ, "bool facesAllowed()") and "apiKeyOk()" in function(integ, "bool facesAllowed()")
-assert "cfg.haCompat" in function(integ, "bool compatAllowed()")
-for name in ("handleFaces", "handleFaceGet", "handleFaceDelete", "handleFaceShow", "handleFaceVars"):
-    assert "facesAllowed()" in function(integ, "void " + name + "()"), f"{name} must check facesAllowed()"
-for name in ("handleThemeList", "handleThemeToggle", "handleThemeInterval", "handlePhotoToggle", "handlePhotoInterval"):
-    assert "compatAllowed()" in function(integ, "void " + name + "()"), f"{name} must check compatAllowed()"
-assert "requireAuth()" in function(integ, "void handleIntegrations()"), "the API key is only shown when signed in"
-print("PASS: stock-matching 4m3m layout, OTA size budget, no float printf, sign-in and integration guards,")
-print("      non-formatting mount, early recovery server, power-cycle/crash recovery, safe restarts, STA backoff, persistent AP")
+metro = (root / "src/metro.cpp").read_text(encoding="utf-8")
+for path in ("/api/metro", "/api/metro/asset", "/api/metro/labels",
+             "/api/metro/favorites", "/api/metro/language", "/api/metro/key"):
+    route = metro.split(f'server.on("{path}", HTTP_POST', 1)
+    if len(route) == 1:
+        route = metro.split(f'server.on("{path}",HTTP_POST', 1)
+    assert len(route) == 2 and 'if (!requireAuth()) return;' in route[1].split('server.on(',1)[0], path
+print("PASS: stock flash layout, OTA size, recovery, and authentication for Metro writes")

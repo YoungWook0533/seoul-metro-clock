@@ -4,11 +4,12 @@
 
 Builds with SMARTCLOCK_RELEASE=1, which makes build_options.py ignore secrets.ini,
 then refuses to finish if the image contains the SSID or password from a local
-secrets.ini. Writes release/SDPro_SmartClockOSS_v<version>.bin (the stock update
+secrets.ini. Writes release/SDPro_MetroClock_v<version>.bin (the stock update
 page only accepts names starting with "SDP") and release/SHA256SUMS.txt.
 """
 from pathlib import Path
 import configparser
+import gzip
 import hashlib
 import os
 import re
@@ -28,9 +29,10 @@ if (root / ".pio-tools" / "platformio").is_dir():
 subprocess.run(pio + ["run", "-t", "clean"], cwd=root, env=env, check=True, stdout=subprocess.DEVNULL)
 subprocess.run(pio + ["run"], cwd=root, env=env, check=True)
 
-image = root / ".pio" / "build" / "esp12e" / "firmware.bin"
+build = Path(env.get("PLATFORMIO_BUILD_DIR", root / ".pio" / "build")) / "esp12e"
+image = build / "firmware.bin"
 data = image.read_bytes()
-header = (root / ".pio" / "build" / "esp12e" / "generated" / "wifi_secrets.h").read_text(encoding="utf-8")
+header = (build / "generated" / "wifi_secrets.h").read_text(encoding="utf-8")
 if "DEFAULT_WIFI" in header:
     sys.exit("Build picked up WiFi defaults; release images must not contain them")
 secrets = root / "secrets.ini"
@@ -44,8 +46,10 @@ if secrets.is_file():   # belt and braces: the local values must not be in the i
 
 out = root / "release"
 out.mkdir(exist_ok=True)
-name = f"SDPro_SmartClockOSS_v{version}.bin"
+name = f"SDPro_MetroClock_v{version}.bin"
 shutil.copy(image, out / name)
 digest = hashlib.sha256(data).hexdigest()
+(out / "metro-ui.html.gz").write_bytes(gzip.compress((root / "web/metro.html").read_bytes(), mtime=0))
+shutil.copyfile(root / "data/metro-network.json.gz", out / "metro-network.json.gz")
 (out / "SHA256SUMS.txt").write_bytes(f"{digest}  {name}\n".encode())   # LF, or `sha256sum -c` fails
 print(f"{out / name}\n{len(data)} bytes, sha256 {digest}\nNo WiFi details in the image.")

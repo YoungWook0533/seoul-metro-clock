@@ -1,9 +1,6 @@
-# Specifications
+# SD Pro hardware reference
 
-Reference material about the hardware and the stock firmware. Findings that changed a choice are in [decisions](../decisions/README.md).
-
-- [Integrations API](integrations-api.md) - custom faces, the stock-compatible photo API, MQTT.
-- [Hardware profile](hardware.md) - MCU, flash layout, display, pin map, recovery wiring.
-- [Stock firmware analysis](stock-firmware-analysis.md) - decompilation notes: display driver, GPIO, HTTP API, security issues.
-- [Device research](device-research.md) - listing, reviews and the GeekMagic-clone context.
-- [Board photo](board-esp12f.jpg)
+- [Hardware profile](hardware.md) covers the ESP8266, flash layout, LCD, pin map, and UART wiring.
+- [Stock firmware analysis](stock-firmware-analysis.md) documents the display driver and stock update interface.
+- [Device research](device-research.md) covers the board and its variants.
+- [ESP-12F board photo](board-esp12f.jpg) shows the module pads.

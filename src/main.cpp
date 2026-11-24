@@ -2,8 +2,8 @@
 // Hardware reverse-engineered from the stock GeekMagic/SD clone firmware.
 // See docs/specifications/hardware.md and stock-firmware-analysis.md for provenance.
 //
-// This file owns boot, recovery, WiFi, NTP and the web API. The seven clock faces
-// are in faces.cpp; Open-Meteo weather fetching is in weather.cpp.
+// This file owns boot, recovery, Wi-Fi, NTP and the web API. Metro rendering
+// and Open-Meteo fetching are in metro.cpp and metro_weather.cpp.
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -19,14 +19,15 @@
 #include <algorithm>
 #include "pins.h"
 #include "config.h"
-#include "web_index.h"   // generated from web/index.html by scripts/build_options.py
+#include "web_index.h"   // generated from web/system.html by scripts/build_options.py
 #include "firmware_validation.h"
 #include "weather.h"
 #include "faces.h"
 #include "integrations.h"
+#include "metro.h"
 
 
-#define FW_VERSION "1.3.2"   // see CHANGELOG.md
+#define FW_VERSION "1.3.2-metro10"
 #include "build_info.h"   // FW_BUILD: commit, "+" if uncommitted changes, build time
 const char* firmwareVersion() { return FW_VERSION; }
 
@@ -204,28 +205,7 @@ void centerText(const String& s, int y, uint8_t font, uint16_t color) {
   clockDisplay().drawString(s, TFT_W / 2, y, font);
 }
 
-// ---------------------------- Faces and weather schedule --------------------
-uint32_t faceSince = 0;   // when the current face was chosen (rotation timer)
-
-// Moves to the next face: built-in faces by id (enabled for rotation, when rotating,
-// and with something to show), then custom faces by name when that integration is on.
-void advanceFace(bool rotation) {
-  int customs = cfg.facesApi ? customFaceCount() : 0, n = FACE_COUNT + customs;
-  int cur = cfg.theme < FACE_COUNT ? cfg.theme : FACE_COUNT - 1;
-  if (cfg.theme == FACE_CUSTOM)
-    for (int i = 0; i < customs; ++i) if (customFaceAt(i) == cfg.customFace) cur = FACE_COUNT + i;
-  for (int step = 1; step <= n; ++step) {
-    int pos = (cur + step) % n;
-    if (pos >= FACE_COUNT) {
-      String name = customFaceAt(pos - FACE_COUNT);
-      if (name.length()) { cfg.theme = FACE_CUSTOM; cfg.customFace = name; return; }
-      continue;
-    }
-    if (rotation && !(cfg.faceMask >> pos & 1)) continue;
-    if (faceAvailable(pos)) { cfg.theme = pos; return; }
-  }
-}
-
+// ---------------------------- Weather schedule ------------------------------
 // One Open-Meteo request every 15 min (its current data is 15-minute) fills both
 // the weather and the forecast. Failures retry after a minute; low heap waits 30 s.
 uint32_t wxNext = 0;     // when the next scheduled fetch is due
@@ -397,7 +377,7 @@ String applySetting(const String& key, const String& val) {
     if (val.length() > 63) return F("TZ rule too long");
     cfg.tz = val; timeChanged = true;
   }
-  else if (key == "theme")      { cfg.theme = constrain(val.toInt(), 0, FACE_COUNT - 1); faceSince = millis(); }
+  else if (key == "theme")      { cfg.theme = constrain(val.toInt(), 0, FACE_COUNT - 1); }
   else if (key == "themeInterval") cfg.themeInterval = constrain(val.toInt(), 0, 3600);
   else if (key == "brightness") { cfg.brightness = constrain(val.toInt(), 0, 100); setBacklight(cfg.brightness); }
   else if (key == "celsius")    cfg.celsius = (val == "1" || val == "true");
@@ -734,33 +714,23 @@ void finishOta() {
 
 void handleStatus();
 void setupRoutes() {
-  server.on("/",         sendIndex);
+  metroRoutes();
+  server.on("/system", sendIndex);
   server.on("/index.html", sendIndex);
-  server.on("/config",   []{ server.send(200, "application/json", configJson()); });
-  server.on("/api/set",  handleApiSet);
-  server.on("/scanwifi", handleScanWifi);
   server.on("/connect",  handleConnect);
   server.on("/restart",  []{ if (!requireAuth()) return; server.send(200, "text/plain", "Restarting"); safeRestart(); });
   server.on("/version",  handleVersion);
   server.on("/update_ota", HTTP_POST, finishOta, handleOtaUpload);
   server.on("/format_storage", HTTP_POST, handleFormatStorage);
-  server.on("/api/photos", handlePhotoList);
   server.on("/api/weather/sync", HTTP_POST, handleWeatherSync);
-  server.on("/api/photos/upload", HTTP_POST, finishPhotoUpload, handlePhotoUpload);
-  server.on("/api/photos/delete", HTTP_POST, handlePhotoDelete);
   server.on("/status",   handleStatus);
   server.on("/api/auth/login", HTTP_POST, handleLogin);
   server.on("/api/auth/logout", HTTP_POST, handleLogout);
   server.on("/api/auth/reveal", HTTP_POST, handleReveal);
   server.on("/api/auth/password", HTTP_POST, handlePasswordChange);
-  server.on("/api/settings/export", handleSettingsExport);
-  server.on("/api/settings/import", HTTP_POST, handleSettingsImport);
-  server.on("/api/settings/reset", HTTP_POST, handleSettingsReset);
-  server.on("/api/wifi/forget", HTTP_POST, handleWifiForget);
   server.collectHeaders("Cookie", "X-Api-Key");   // sessions; the faces API key
   integrationsRoutes();
   server.onNotFound([]{
-    if (servePhoto()) return;
     if (mode == MODE_AP) { // captive portal: send everything to setup
       server.sendHeader("Location", "/", true);
       server.send(302, "text/plain", "");
@@ -880,6 +850,7 @@ void startOptionalServices() {
     return;
   }
   cfg.load();
+  metroLoad();
   displayBegin();
   drawSetupScreen();
   // The unit may have no button fitted; GPIO4 is never used to choose recovery.
@@ -897,13 +868,16 @@ void handleStatus() {
   doc["version"] = FW_VERSION; doc["build"] = FW_BUILD; doc["uptime"] = millis() / 1000; doc["heap"] = ESP.getFreeHeap();
   doc["heapLow"] = heapLow;   // (getMaxFreeBlockSize() would add 1.6 KB of umm stats)
   doc["resetReason"] = ESP.getResetReason();
+  const rst_info* reset = ESP.getResetInfoPtr();
+  doc["exception"] = reset->exccause;
+  doc["epc1"] = reset->epc1;
+  doc["excvaddr"] = reset->excvaddr;
   bool linked = WiFi.status() == WL_CONNECTED;
   doc["connected"] = linked;
   doc["ssid"] = linked ? WiFi.SSID() : staSsid;
   if (!linked && staFail >= 0) { doc["wifiError"] = staFailText(); doc["wifiCode"] = staFailReason; }
   if (linked) { doc["ip"] = WiFi.localIP().toString(); doc["rssi"] = WiFi.RSSI(); }
   doc["apIp"] = WiFi.softAPIP().toString();
-  doc["mdns"] = deviceHost() + ".local";
   time_t now = time(nullptr);
   if (now > 1600000000) {            // only once NTP has set the clock
     struct tm t; localtime_r(&now, &t);
@@ -916,26 +890,7 @@ void handleStatus() {
   }
   if (wx.error.length()) doc["weatherError"] = wx.error;
   if (wx.lastSuccess) doc["weatherAge"] = (millis() - wx.lastSuccess) / 1000;
-  if (cfg.geoFor == cfg.city && cfg.geoName.length()) doc["location"] = cfg.geoName;
-  if (wx.valid) {
-    JsonObject w = doc["weather"].to<JsonObject>();
-    w["temp"] = wx.temp; w["feels"] = wx.feels; w["humidity"] = wx.humidity; w["wind"] = wx.wind;
-    w["main"] = wx.main; w["desc"] = wx.desc; w["icon"] = wx.icon; w["city"] = wx.cityName;
-  }
-  doc["forecastDays"] = fc.valid ? fc.count : 0;
-  doc["photos"] = storageReady ? photoCount() : 0;
-  doc["face"] = cfg.theme;
   doc["signedIn"] = requestAuthorized();
-  extern String mqttStatus();
-  doc["mqtt"] = mqttStatus();
-  if (cfg.theme == FACE_CUSTOM) doc["customFace"] = cfg.customFace;
-  doc["nightAuto"] = cfg.nightAuto;
-  if (wx.sunrise >= 0 && wx.sunset >= 0) {
-    char sun[12];
-    unsigned rise = wx.sunrise % 1440, set = wx.sunset % 1440;
-    snprintf(sun, sizeof(sun), "%02u:%02u", rise / 60, rise % 60); doc["sunrise"] = sun;
-    snprintf(sun, sizeof(sun), "%02u:%02u", set / 60, set % 60); doc["sunset"] = sun;
-  }
   String out; serializeJson(doc, out);
   server.send(200, "application/json", out);
 }
@@ -1008,7 +963,6 @@ void setup() {
 void loop() {
   dns.processNextRequest();
   server.handleClient();
-  serviceMdns();
   uint32_t heap = ESP.getFreeHeap();
   if (heap < heapLow) heapLow = heap;
   // OTA must be the only activity while staging; no settings writes or network work.
@@ -1052,19 +1006,16 @@ void loop() {
   }
 
   static uint32_t lastButton = 0;
-  if (buttonPressed) {                 // button (if fitted) cycles faces
+  if (buttonPressed) {
     buttonPressed = false;
-    // Debounced and not persisted: a noisy or unfitted GPIO4 must not wear flash.
-    if (millis() - lastButton > 300) { lastButton = millis(); advanceFace(false); faceSince = millis(); }
+    uint32_t pressedAt = millis();
+    if (mode == MODE_RUN && pressedAt - lastButton > 300) {
+      lastButton = pressedAt;
+      metroNextFavorite();
+    }
   }
-  if (cfg.themeInterval > 0 && millis() - faceSince > (uint32_t)cfg.themeInterval * 1000) {
-    faceSince = millis();
-    advanceFace(true);   // in RAM only; the saved face stays the user's choice
-  }
-
   if (mode == MODE_RUN) {
     serviceWeather();
-    integrationsLoop();
     time_t now = time(nullptr);
     bool timeValid = now > 1600000000;
     struct tm t; localtime_r(&now, &t);
