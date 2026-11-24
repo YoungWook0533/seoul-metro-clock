@@ -46,7 +46,11 @@ Metro Clock은 **ESP8266 기반 SD Pro 스마트 날씨 시계**를 수도권 �
 
 ### 방법 1. 에이전트로 설치하기 (추천)
 
-Codex나 Claude에서 이 저장소를 열고 다음과 같이 요청하세요. “[`docs/INSTALL_AGENT.md`](docs/INSTALL_AGENT.md)를 읽고 내 SD Pro에 Metro Clock을 설치해 줘.”
+Codex나 Claude에서 이 저장소를 열고 아래 프롬프트를 붙여넣으세요. [에이전트 설치 가이드](docs/INSTALL_AGENT.md)
+
+```text
+docs/INSTALL_AGENT.md를 읽고 내 SD Pro에 Metro Clock을 설치해 줘.
+```
 
 ### 방법 2. 직접 설치하기
 
@@ -91,7 +95,9 @@ Codex나 Claude에서 이 저장소를 열고 다음과 같이 요청하세요. 
 
 ### 출력 케이스 조립
 
-[외장 케이스 STL](hardware/enclosure/outer-shell-v3.stl) · [HB05 고정판 STL](hardware/enclosure/hb05-slide-retainer-v3.stl) · [CAD, 맞춤 게이지, 출력 방향](hardware/enclosure/README.md)
+![v3 케이스와 후면 레일, 슬라이드형 HB05 고정판의 3D 모델](hardware/enclosure/outer-shell-v3-preview.png)
+
+[외장 케이스 STL](hardware/enclosure/outer-shell-v3.stl) · [HB05 고정판 STL](hardware/enclosure/hb05-slide-retainer-v3.stl) · [OpenSCAD 원본 모델](hardware/enclosure/metro-outer-shell-v3.scad) · [맞춤 게이지와 출력 방향](hardware/enclosure/README.md)
 
 1. **케이스에 버튼을 끼웁니다.** 배선한 스위치를 케이스 안쪽에서 끼우고, 뒤에서 v3 고정판을 밀어 넣습니다. 전선에 여유를 두고 버튼이 잘 돌아오는지 확인하세요.
 

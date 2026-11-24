@@ -46,7 +46,11 @@ Clone or download this repository. The firmware image is built from source. Comp
 
 ### Option 1. Install with an agent (recommended)
 
-Open this repository in Codex or Claude and ask: “Read [`docs/INSTALL_AGENT.md`](docs/INSTALL_AGENT.md) and follow it to install Metro Clock on my SD Pro.”
+Open this repository in Codex or Claude and paste the prompt below. [Agent installation guide](docs/INSTALL_AGENT.md)
+
+```text
+Read docs/INSTALL_AGENT.md and follow it to install Metro Clock on my SD Pro.
+```
 
 ### Option 2. Install manually
 
@@ -91,7 +95,9 @@ The Seoul Open Data lines use the saved key. Airport Railroad (AREX) uses the op
 
 ### Assemble the printed shell
 
-[Shell STL](hardware/enclosure/outer-shell-v3.stl) · [HB05 retainer STL](hardware/enclosure/hb05-slide-retainer-v3.stl) · [CAD, fit gauges, and print orientation](hardware/enclosure/README.md)
+![V3 CAD preview showing the shell, rear rails, and slide-in HB05 retainer](hardware/enclosure/outer-shell-v3-preview.png)
+
+[Shell STL](hardware/enclosure/outer-shell-v3.stl) · [HB05 retainer STL](hardware/enclosure/hb05-slide-retainer-v3.stl) · [OpenSCAD model](hardware/enclosure/metro-outer-shell-v3.scad) · [Fit gauges and print orientation](hardware/enclosure/README.md)
 
 1. **Fit the button into the shell.** Insert the wired switch from inside, then slide the v3 retainer underneath it from the rear. Leave slack in the leads and check that the button returns freely.
 
