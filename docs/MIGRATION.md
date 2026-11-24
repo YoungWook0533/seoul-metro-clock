@@ -61,14 +61,14 @@ when any of these happen:
   (`/restart`, `/connect`, OTA, format) goes through `safeRestart()`, which clears both
   triggers so a fast save is never mistaken for a crash.
 - **A filesystem mount failure.** The firmware sets `LittleFSConfig(false)`, so it does
-  **not** format an unknown or corrupt volume. Recovery then offers an explicit **Format
-  storage** button (POST `/format_storage?confirm=erase`). It is accepted only after a
-  mount actually failed and erases the whole FS region.
+  **not** format an unknown or corrupt volume. Recovery exposes the explicit
+  `POST /format_storage?confirm=erase` endpoint after a failed mount. It erases the entire
+  filesystem.
 
 In recovery the screen shows "Recovery", the AP name and address, and the LAN IP if one is
 connected. If the panel itself reset the previous recovery boot, the panel is skipped. In
 recovery, settings requests return HTTP 503. Only OTA, format (after a failed mount),
-status, and restart work. **Restart** leaves recovery.
+status, and restart work. **Restart clock** leaves recovery.
 
 ### Build-time WiFi defaults (optional)
 
